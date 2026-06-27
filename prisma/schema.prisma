@@ -1,0 +1,186 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+}
+
+model Category {
+  id            String     @id @default(cuid())
+  name          String
+  parentId      String?
+  parent        Category?  @relation("Tree", fields: [parentId], references: [id])
+  children      Category[] @relation("Tree")
+  naicsCode     String?
+  osmTags       Json? // {craft:"roofer"} etc.
+  fsqCategoryId String?
+  leads         Lead[]
+}
+
+model Location {
+  id           String  @id @default(cuid())
+  state        String
+  county       String?
+  city         String?
+  zip          String?
+  lat          Float?
+  lon          Float?
+  bbox         Json? // [minLat,minLon,maxLat,maxLon]
+  estabCount   Int? // Census ZBP/CBP
+  naicsDensity Json? // {"238160":42}
+
+  @@index([state, zip])
+}
+
+model Lead {
+  id             String  @id @default(cuid())
+  businessName   String
+  normalizedName String
+  categoryId     String?
+  category       Category? @relation(fields: [categoryId], references: [id])
+  industry       String?
+  address        String?
+  city           String?
+  state          String?
+  zip            String?
+  country        String  @default("US")
+  phone          String?
+  website        String?
+  email          String?
+  latitude       Float?
+  longitude      Float?
+  businessStatus String? // operational|closed|unknown
+  dedupeKey      String  @unique // normalize(name)+zip+phone
+  status         String  @default("new") // new|audited|scored|enriched|exported|dnc
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sources        LeadSource[]
+  audits         LeadAudit[]
+  scores         LeadScore[]
+  enrichmentJobs EnrichmentJob[]
+
+  @@index([state, zip, industry])
+  @@index([normalizedName])
+}
+
+model LeadSource {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id])
+  source     String // openstreetmap|geoapify|foursquare|google_places|dataforseo|socrata
+  sourceId   String
+  rawTags    Json?
+  sourceUrl  String?
+  capturedAt DateTime @default(now())
+
+  @@unique([source, sourceId])
+}
+
+model LeadAudit {
+  id                 String   @id @default(cuid())
+  leadId             String
+  lead               Lead     @relation(fields: [leadId], references: [id])
+  hasWebsite         Boolean  @default(false)
+  httpStatus         Int?
+  hasHttps           Boolean  @default(false)
+  isMobileFriendly   Boolean?
+  perfScore          Float?
+  seoScore           Float?
+  accessibilityScore Float?
+  lcpMs              Int?
+  cls                Float?
+  inpMs              Int?
+  inCrux             Boolean  @default(false)
+  techStack          Json? // {cms:"Wix"}
+  auditSource        String? // pagespeed|crux|cheerio|dataforseo
+  auditedAt          DateTime @default(now())
+}
+
+model LeadScore {
+  id             String   @id @default(cuid())
+  leadId         String
+  lead           Lead     @relation(fields: [leadId], references: [id])
+  painScore      Int // 0-100
+  scoreBreakdown Json
+  priority       String // hot|warm|cold
+  scoredAt       DateTime @default(now())
+}
+
+model EnrichmentJob {
+  id          String    @id @default(cuid())
+  leadId      String
+  lead        Lead      @relation(fields: [leadId], references: [id])
+  provider    String
+  type        String // email|reputation|legal|tech
+  status      String    @default("pending")
+  request     Json?
+  response    Json?
+  costCredits Float?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+model ApiUsageLog {
+  id          String   @id @default(cuid())
+  provider    String
+  endpoint    String
+  httpStatus  Int?
+  creditsUsed Float    @default(0)
+  costUsd     Float    @default(0)
+  requestHash String?
+  cached      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([provider, createdAt])
+}
+
+model Export {
+  id          String   @id @default(cuid())
+  destination String // csv|sheets|gohighlevel
+  filter      Json
+  leadIds     Json
+  rowCount    Int
+  fileUrl     String?
+  createdAt   DateTime @default(now())
+}
+
+model DoNotContact {
+  id        String   @id @default(cuid())
+  matchType String // email|phone|domain|business
+  value     String
+  reason    String?
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@unique([matchType, value])
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  name      String
+  state     String?
+  city      String?
+  zip       String?
+  county    String?
+  radiusKm  Int?
+  centerLat Float?
+  centerLon Float?
+  industry  String
+  status    String   @default("queued") // queued|discovering|auditing|scoring|done|error
+  stats     Json?
+  createdAt DateTime @default(now())
+}
