@@ -9,6 +9,7 @@ export default auth((req) => {
   const isAuthed = !!req.auth;
   const isPublic =
     pathname.startsWith("/login") ||
+    pathname === "/leadforge-logo.png" ||
     pathname.startsWith("/api/inngest") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/auth");

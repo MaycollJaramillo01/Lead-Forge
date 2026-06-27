@@ -1,211 +1,130 @@
 import Link from "next/link";
 import { neon } from "@neondatabase/serverless";
+import { ArrowRight, CheckCircle2, Clock3, Layers3, Plus, UsersRound, Zap } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
 const db = neon(process.env.DATABASE_URL!);
 
-const STATUS_LABEL: Record<string, string> = {
-  completed: "Completado",
-  running: "Ejecutando",
-  error: "Error",
-  queued: "En cola",
+const STATUS: Record<string, { label: string; className: string }> = {
+  completed: { label: "Completado", className: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
+  running: { label: "Ejecutando", className: "bg-blue-50 text-blue-700 ring-blue-600/20" },
+  error: { label: "Error", className: "bg-red-50 text-red-700 ring-red-600/20" },
+  queued: { label: "En cola", className: "bg-amber-50 text-amber-700 ring-amber-600/20" },
 };
 
 export default async function DashboardPage() {
-  const [
-    [stats],
-    nicheRows,
-    dayRows,
-    recentTasks,
-  ] = await Promise.all([
-    db`
-      SELECT
-        (SELECT COUNT(*)::int FROM leads)                                                    AS total_leads,
-        (SELECT COUNT(*)::int FROM leads WHERE created_at > NOW() - INTERVAL '24 hours')    AS today_leads,
-        (SELECT COUNT(*)::int FROM scrape_tasks WHERE status = 'completed')                 AS done_tasks,
-        (SELECT COUNT(*)::int FROM scrape_tasks WHERE status = 'running')                   AS running_tasks
-    `,
-    db`
-      SELECT COALESCE(t.keyword, l.source) AS niche, COUNT(l.id)::int AS count
-      FROM leads l
-      LEFT JOIN scrape_tasks t ON t.id = l.task_id
-      GROUP BY COALESCE(t.keyword, l.source)
-      ORDER BY count DESC
-      LIMIT 8
-    `,
-    db`
-      SELECT TO_CHAR(DATE(created_at), 'DD Mon') AS label,
-             DATE(created_at)                    AS day,
-             COUNT(*)::int                       AS count
-      FROM leads
-      WHERE created_at > NOW() - INTERVAL '7 days'
-      GROUP BY DATE(created_at), label
-      ORDER BY DATE(created_at)
-    `,
-    db`
-      SELECT id, keyword, location, status, leads_count, created_at
-      FROM scrape_tasks
-      ORDER BY created_at DESC
-      LIMIT 8
-    `,
+  const [[stats], nicheRows, dayRows, recentTasks] = await Promise.all([
+    db`SELECT
+      (SELECT COUNT(*)::int FROM leads) AS total_leads,
+      (SELECT COUNT(*)::int FROM leads WHERE created_at > NOW() - INTERVAL '24 hours') AS today_leads,
+      (SELECT COUNT(*)::int FROM scrape_tasks WHERE status = 'completed') AS done_tasks,
+      (SELECT COUNT(*)::int FROM scrape_tasks WHERE status = 'running') AS running_tasks`,
+    db`SELECT COALESCE(t.keyword, l.source) AS niche, COUNT(l.id)::int AS count
+      FROM leads l LEFT JOIN scrape_tasks t ON t.id = l.task_id
+      GROUP BY COALESCE(t.keyword, l.source) ORDER BY count DESC LIMIT 6`,
+    db`SELECT TO_CHAR(DATE(created_at), 'DD Mon') AS label, DATE(created_at) AS day, COUNT(*)::int AS count
+      FROM leads WHERE created_at > NOW() - INTERVAL '7 days'
+      GROUP BY DATE(created_at), label ORDER BY DATE(created_at)`,
+    db`SELECT id, keyword, location, status, leads_count, created_at
+      FROM scrape_tasks ORDER BY created_at DESC LIMIT 7`,
   ]);
 
-  const maxNiche = Math.max(1, ...nicheRows.map((r) => Number(r.count)));
-  const maxDay   = Math.max(1, ...dayRows.map((r)   => Number(r.count)));
-
-  const totalLeads   = Number(stats?.total_leads   ?? 0);
-  const todayLeads   = Number(stats?.today_leads   ?? 0);
-  const doneTasks    = Number(stats?.done_tasks    ?? 0);
-  const runningTasks = Number(stats?.running_tasks ?? 0);
+  const maxNiche = Math.max(1, ...nicheRows.map((row) => Number(row.count)));
+  const maxDay = Math.max(1, ...dayRows.map((row) => Number(row.count)));
+  const values = {
+    total: Number(stats?.total_leads ?? 0),
+    today: Number(stats?.today_leads ?? 0),
+    completed: Number(stats?.done_tasks ?? 0),
+    running: Number(stats?.running_tasks ?? 0),
+  };
 
   return (
-    <div className="space-y-10">
-
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Lead Forge</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Cleaning · Roofing · Construcción · Landscaping — empresas sin sitio web
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 divide-x divide-border border-y border-border sm:grid-cols-4">
-        <Stat label="Total leads"       value={totalLeads} />
-        <Stat label="Últimas 24 h"      value={todayLeads} />
-        <Stat label="Tareas finalizadas" value={doneTasks} />
-        <Stat label="En ejecución"      value={runningTasks} />
-      </div>
-
-      {/* Charts */}
-      <div className="grid gap-8 md:grid-cols-2">
-
-        {/* Leads por nicho */}
-        <section>
-          <h2 className="mb-4 text-sm font-medium">Leads por nicho</h2>
-          {nicheRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Sin datos aún.{" "}
-              <Link href="/campaigns" className="underline underline-offset-2">
-                Lanzar primera tarea
-              </Link>
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {nicheRows.map((r) => {
-                const pct = Math.round((Number(r.count) / maxNiche) * 100);
-                return (
-                  <div key={String(r.niche)} className="flex items-center gap-3 text-sm">
-                    <span className="w-28 shrink-0 truncate text-right text-muted-foreground capitalize">
-                      {String(r.niche)}
-                    </span>
-                    <div className="flex-1 bg-muted" style={{ height: "6px" }}>
-                      <div
-                        className="h-full bg-foreground"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="w-10 shrink-0 text-right tabular-nums">
-                      {String(r.count)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* Actividad últimos 7 días */}
-        <section>
-          <h2 className="mb-4 text-sm font-medium">Actividad últimos 7 días</h2>
-          {dayRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin actividad reciente.</p>
-          ) : (
-            <div className="flex h-24 items-end gap-2">
-              {dayRows.map((r) => {
-                const h = Math.max(2, Math.round((Number(r.count) / maxDay) * 80));
-                return (
-                  <div key={String(r.day)} className="flex flex-1 flex-col items-center gap-1">
-                    <span className="text-[10px] tabular-nums text-muted-foreground">
-                      {Number(r.count)}
-                    </span>
-                    <div
-                      className="w-full bg-foreground"
-                      style={{ height: `${h}px` }}
-                    />
-                    <span className="text-[10px] text-muted-foreground">
-                      {String(r.label).split(" ")[0]}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* Tareas recientes */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium">Tareas recientes</h2>
-          <Link href="/campaigns" className="text-xs text-muted-foreground hover:underline underline-offset-2">
-            Ver todas
-          </Link>
+    <div className="space-y-8">
+      <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-sm font-semibold text-primary">Centro de operaciones</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.035em]">Resumen general</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Rendimiento de tus campañas y actividad reciente.</p>
         </div>
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted text-left text-xs text-muted-foreground">
-                <th className="px-3 py-2 font-medium">Nicho</th>
-                <th className="px-3 py-2 font-medium">Ubicación</th>
-                <th className="px-3 py-2 font-medium">Estado</th>
-                <th className="px-3 py-2 font-medium">Leads</th>
-                <th className="px-3 py-2 font-medium">Fecha</th>
-              </tr>
+        <Link href="/campaigns" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-[#102baf]">
+          <Plus className="h-4 w-4" /> Nueva campaña
+        </Link>
+      </header>
+
+      <section aria-label="Indicadores principales" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat icon={UsersRound} label="Total de leads" value={values.total} featured />
+        <Stat icon={Zap} label="Nuevos en 24 horas" value={values.today} />
+        <Stat icon={CheckCircle2} label="Tareas finalizadas" value={values.completed} />
+        <Stat icon={Clock3} label="En ejecución" value={values.running} />
+      </section>
+
+      <section className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
+        <div className="rounded-2xl border border-border bg-white p-5 sm:p-6">
+          <div className="mb-7 flex items-start justify-between gap-4">
+            <div><h2 className="font-semibold">Leads por nicho</h2><p className="mt-1 text-sm text-muted-foreground">Distribución de oportunidades encontradas</p></div>
+            <Layers3 className="h-5 w-5 text-primary" />
+          </div>
+          {nicheRows.length === 0 ? <EmptyState message="Aún no hay datos por nicho." /> : (
+            <div className="space-y-5">
+              {nicheRows.map((row) => {
+                const percent = Math.round((Number(row.count) / maxNiche) * 100);
+                return (
+                  <div key={String(row.niche)}>
+                    <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+                      <span className="truncate font-medium capitalize">{String(row.niche)}</span>
+                      <span className="tabular-nums text-muted-foreground">{Number(row.count).toLocaleString("es-MX")}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-border bg-white p-5 sm:p-6">
+          <div className="mb-8"><h2 className="font-semibold">Actividad semanal</h2><p className="mt-1 text-sm text-muted-foreground">Leads añadidos durante los últimos 7 días</p></div>
+          {dayRows.length === 0 ? <EmptyState message="Sin actividad reciente." /> : (
+            <div className="flex h-48 items-end gap-3 border-b border-border pt-4">
+              {dayRows.map((row) => {
+                const height = Math.max(8, Math.round((Number(row.count) / maxDay) * 148));
+                return (
+                  <div key={String(row.day)} className="group flex min-w-0 flex-1 flex-col items-center gap-2">
+                    <span className="text-xs font-medium tabular-nums text-muted-foreground">{Number(row.count)}</span>
+                    <div className="w-full max-w-10 rounded-t-md bg-primary/80 group-hover:bg-primary" style={{ height }} />
+                    <span className="pb-3 text-[11px] text-muted-foreground">{String(row.label).split(" ")[0]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-border bg-white">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-5 sm:px-6">
+          <div><h2 className="font-semibold">Tareas recientes</h2><p className="mt-1 text-sm text-muted-foreground">Últimas ejecuciones del equipo</p></div>
+          <Link href="/campaigns" className="flex min-h-11 items-center gap-1 text-sm font-semibold text-primary hover:text-[#102baf]">Ver todas <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr><th className="px-6 py-3 font-semibold">Nicho</th><th className="px-6 py-3 font-semibold">Ubicación</th><th className="px-6 py-3 font-semibold">Estado</th><th className="px-6 py-3 font-semibold">Leads</th><th className="px-6 py-3 font-semibold">Fecha</th></tr>
             </thead>
-            <tbody>
-              {recentTasks.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
-                    Sin tareas.{" "}
-                    <Link href="/campaigns" className="underline underline-offset-2">
-                      Crear primera tarea
-                    </Link>
-                  </td>
-                </tr>
-              )}
-              {recentTasks.map((t) => (
-                <tr key={String(t.id)} className="border-t border-border hover:bg-muted/40">
-                  <td className="px-3 py-2 capitalize">{String(t.keyword)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {t.location ? String(t.location) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {STATUS_LABEL[String(t.status)] ?? String(t.status)}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums">
-                    {t.leads_count != null ? (
-                      <Link
-                        href={`/leads?task=${t.id}`}
-                        className="hover:underline underline-offset-2"
-                      >
-                        {String(t.leads_count)}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {t.created_at
-                      ? new Date(t.created_at as string).toLocaleString("es-MX", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-border">
+              {recentTasks.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">No hay tareas todavía.</td></tr>}
+              {recentTasks.map((task) => {
+                const state = STATUS[String(task.status)] ?? { label: String(task.status), className: "bg-muted text-muted-foreground ring-slate-500/20" };
+                return (
+                  <tr key={String(task.id)} className="hover:bg-slate-50/70">
+                    <td className="px-6 py-4 font-medium capitalize">{String(task.keyword)}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{task.location ? String(task.location) : "—"}</td>
+                    <td className="px-6 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${state.className}`}>{state.label}</span></td>
+                    <td className="px-6 py-4 font-medium tabular-nums"><Link href={`/leads?task=${task.id}`} className="text-primary hover:underline">{task.leads_count != null ? String(task.leads_count) : "—"}</Link></td>
+                    <td className="px-6 py-4 text-muted-foreground">{task.created_at ? new Date(task.created_at as string).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -214,13 +133,18 @@ export default async function DashboardPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ icon: Icon, label, value, featured = false }: { icon: typeof UsersRound; label: string; value: number; featured?: boolean }) {
   return (
-    <div className="px-6 py-5">
-      <p className="text-2xl font-semibold tabular-nums tracking-tight">
-        {value.toLocaleString("es-MX")}
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+    <div className={`rounded-2xl border p-5 ${featured ? "border-primary bg-primary text-white" : "border-border bg-white"}`}>
+      <div className="flex items-start justify-between gap-4">
+        <p className={`text-sm font-medium ${featured ? "text-blue-100" : "text-muted-foreground"}`}>{label}</p>
+        <span className={`rounded-lg p-2 ${featured ? "bg-white/10" : "bg-primary/10 text-primary"}`}><Icon className="h-5 w-5" /></span>
+      </div>
+      <p className="mt-6 text-3xl font-semibold tabular-nums tracking-[-0.03em]">{value.toLocaleString("es-MX")}</p>
     </div>
   );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return <div className="flex min-h-40 items-center justify-center rounded-xl bg-muted px-6 text-center text-sm text-muted-foreground">{message}</div>;
 }

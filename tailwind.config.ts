@@ -8,12 +8,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        border: "hsl(214.3 31.8% 91.4%)",
-        background: "hsl(0 0% 100%)",
-        foreground: "hsl(222.2 47.4% 11.2%)",
-        muted: "hsl(210 40% 96.1%)",
-        "muted-foreground": "hsl(215.4 16.3% 46.9%)",
-        primary: "hsl(222.2 47.4% 11.2%)",
+        border: "hsl(var(--border))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        muted: "hsl(var(--muted))",
+        "muted-foreground": "hsl(var(--muted-foreground))",
+        primary: "hsl(var(--primary))",
+        destructive: "hsl(var(--destructive))",
       },
     },
   },

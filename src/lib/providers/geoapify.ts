@@ -87,8 +87,6 @@ export function parseGeoapify(
       email: "",
       latitude: p.lat != null ? String(p.lat) : "",
       longitude: p.lon != null ? String(p.lon) : "",
-      rating: null,
-      review_count: null,
       raw_tags: p,
       captured_at: now,
     });

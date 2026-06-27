@@ -3,12 +3,57 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 47.4% 11.2%;
+  --background: 220 33% 98%;
+  --foreground: 224 38% 12%;
+  --border: 220 22% 90%;
+  --muted: 222 28% 95%;
+  --muted-foreground: 220 10% 42%;
+  --primary: 229 76% 42%;
+  --destructive: 0 72% 51%;
 }
 
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: hsl(var(--primary) / 0.16); }
+
+a, button, input, select {
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease,
+    box-shadow 160ms ease, opacity 160ms ease;
+}
+
+:focus-visible {
+  outline: 3px solid hsl(var(--primary) / 0.22);
+  outline-offset: 2px;
+}
+
+.brand-logo {
+  position: relative;
+  display: block;
+  width: 190px;
+  height: 48px;
+  overflow: hidden;
+}
+
+.brand-logo img {
+  position: absolute;
+  top: -54px;
+  left: -14px;
+  width: 215px;
+  max-width: none;
+  height: auto;
+}
+
+.brand-logo-large { width: 230px; height: 58px; }
+.brand-logo-large img { top: -69px; left: -19px; width: 270px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

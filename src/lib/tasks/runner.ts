@@ -89,7 +89,7 @@ export async function runNormalTask(
   const taskId = task.id as string;
 
   try {
-    const ql = buildOverpassQL(industry, { city, state });
+    const ql = buildOverpassQL(industry, { industry, city, state });
     const endpoint =
       process.env.OVERPASS_ENDPOINT ?? "https://overpass-api.de/api/interpreter";
 
